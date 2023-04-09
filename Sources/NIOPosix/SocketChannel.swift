@@ -424,8 +424,7 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
         }
 
         self.pendingWrites = PendingDatagramWritesManager(bufferPool: eventLoop.bufferPool,
-                                                          msgs: eventLoop.msgs,
-                                                          addresses: eventLoop.addresses,
+                                                          msgBufferPool: eventLoop.msgBufferPool,
                                                           controlMessageStorage: eventLoop.controlMessageStorage)
 
         try super.init(
@@ -441,8 +440,7 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
         self.vectorReadManager = nil
         try socket.setNonBlocking()
         self.pendingWrites = PendingDatagramWritesManager(bufferPool: eventLoop.bufferPool,
-                                                          msgs: eventLoop.msgs,
-                                                          addresses: eventLoop.addresses,
+                                                          msgBufferPool: eventLoop.msgBufferPool,
                                                           controlMessageStorage: eventLoop.controlMessageStorage)
         try super.init(
             socket: socket,
@@ -508,7 +506,18 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
                 // Receiving packet info is only supported for IP
                 throw ChannelError.operationUnsupported
             }
-            break
+        case _ as ChannelOptions.Types.DatagramSegmentSize:
+            guard System.supportsUDPSegmentationOffload else {
+                throw ChannelError.operationUnsupported
+            }
+            let segmentSize = value as! ChannelOptions.Types.DatagramSegmentSize.Value
+            try self.socket.setUDPSegmentSize(segmentSize)
+        case _ as ChannelOptions.Types.DatagramReceiveOffload:
+            guard System.supportsUDPReceiveOffload else {
+                throw ChannelError.operationUnsupported
+            }
+            let enable = value as! ChannelOptions.Types.DatagramReceiveOffload.Value
+            try self.socket.setUDPReceiveOffload(enable)
         default:
             try super.setOption0(option, value: value)
         }
@@ -552,6 +561,16 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
                 // Receiving packet info is only supported for IP
                 throw ChannelError.operationUnsupported
             }
+        case _ as ChannelOptions.Types.DatagramSegmentSize:
+            guard System.supportsUDPSegmentationOffload else {
+                throw ChannelError.operationUnsupported
+            }
+            return try self.socket.getUDPSegmentSize() as! Option.Value
+        case _ as ChannelOptions.Types.DatagramReceiveOffload:
+            guard System.supportsUDPReceiveOffload else {
+                throw ChannelError.operationUnsupported
+            }
+            return try self.socket.getUDPReceiveOffload() as! Option.Value
         default:
             return try super.getOption0(option)
         }
@@ -795,7 +814,6 @@ final class DatagramChannel: BaseSocketChannel<Socket> {
                                                destinationPtr: destinationPtr,
                                                destinationSize: destinationSize,
                                                controlBytes: controlBytes.validControlBytes)
-
             },
             vectorWriteOperation: { msgs in
                 return try self.socket.sendmmsg(msgs: msgs)

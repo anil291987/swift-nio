@@ -810,21 +810,34 @@ public final class EventLoopTest : XCTestCase {
             XCTAssertNoThrow(try group.syncShutdownGracefully())
         }
 
-        class Thing {}
+        class Thing: @unchecked Sendable {
+            private let deallocated: ConditionLock<Int>
 
-        weak var weakThing: Thing? = nil
+            init(_ deallocated: ConditionLock<Int>) {
+                self.deallocated = deallocated
+            }
 
-        func make() -> Scheduled<Never> {
-            let aThing = Thing()
-            weakThing = aThing
+            deinit {
+                self.deallocated.lock()
+                self.deallocated.unlock(withValue: 1)
+            }
+        }
+
+        func make(deallocated: ConditionLock<Int>) -> Scheduled<Never> {
+            let aThing = Thing(deallocated)
             return group.next().scheduleTask(in: .hours(1)) {
                 preconditionFailure("this should definitely not run: \(aThing)")
             }
         }
 
-        let scheduled = make()
+        let deallocated = ConditionLock(value: 0)
+        let scheduled = make(deallocated: deallocated)
         scheduled.cancel()
-        assert(weakThing == nil, within: .seconds(1))
+        if deallocated.lock(whenValue: 1, timeoutSeconds: 60) {
+            deallocated.unlock()
+        } else {
+            XCTFail("Timed out waiting for lock")
+        }
         XCTAssertThrowsError(try scheduled.futureResult.wait()) { error in
             XCTAssertEqual(EventLoopError.cancelled, error as? EventLoopError)
         }
