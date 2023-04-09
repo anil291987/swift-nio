@@ -379,8 +379,3 @@ dnf install swift-lang /usr/bin/nc /usr/bin/lsof /usr/bin/shasum
 [repo-nio-ssl]: https://github.com/apple/swift-nio-ssl
 [repo-nio-transport-services]: https://github.com/apple/swift-nio-transport-services
 [repo-nio-ssh]: https://github.com/apple/swift-nio-ssh
-
-
-## Stats
-
-[![Stats](https://repobeats.axiom.co/api/embed/f2fa570e3daa9586ec48ddd7649e948f2f873f39.svg "Repobeats analytics image")](https://github.com/apple/swift-nio)
